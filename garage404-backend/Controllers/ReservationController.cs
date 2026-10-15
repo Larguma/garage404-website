@@ -7,20 +7,22 @@ using MongoDB.Bson;
 
 namespace garage404_backend.Controllers
 {
-  [Route("api/[controller]")]
+  [Route("v1/[controller]")]
   [ApiController]
   public class ReservationController(
     ReservationsService reservationsService,
     ServiceTypesService serviceTypesService,
     UsersService usersService,
     ILogger<ReservationController> logger,
-    IDiscordWebhookService discordWebhookService) : ControllerBase
+    IDiscordWebhookService discordWebhookService,
+    IGoogleCalendarService googleCalendarService) : ControllerBase
   {
     private readonly ReservationsService _reservationsService = reservationsService;
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
     private readonly UsersService _usersService = usersService;
     private readonly ILogger<ReservationController> _logger = logger;
     private readonly IDiscordWebhookService _discord = discordWebhookService;
+    private readonly IGoogleCalendarService _googleCalendar = googleCalendarService;
 
     [Authorize]
     [HttpGet]
@@ -128,7 +130,10 @@ namespace garage404_backend.Controllers
 
     [Authorize]
     [HttpPut("{id}/accept")]
-    public async Task<IActionResult> AcceptReservation(string id, [FromBody] DateTime actualDate)
+    public async Task<IActionResult> AcceptReservation(
+      string id,
+      [FromBody] DateTimeOffset actualDate,
+      CancellationToken cancellationToken)
     {
       if (!await Authentication.IsAdminAsync(User, _usersService))
       {
@@ -137,14 +142,16 @@ namespace garage404_backend.Controllers
 
       try
       {
-        var reservation = await _reservationsService.GetAsync(ObjectId.Parse(id));
+        var reservationId = ObjectId.Parse(id);
+        var reservation = await _reservationsService.GetAsync(reservationId);
         if (reservation == null)
         {
           return NotFound($"No reservation found with id {id}");
         }
 
-        reservation.ActualDate = actualDate;
-        await _reservationsService.UpdateAsync(ObjectId.Parse(id), reservation);
+        reservation.ActualDate = _googleCalendar.ConvertZurichTimeToUtc(actualDate.DateTime);
+        reservation.CalEventId = await _googleCalendar.UpsertReservationEventAsync(reservation, cancellationToken);
+        await _reservationsService.UpdateAsync(reservationId, reservation);
         return Ok();
       }
       catch (Exception e)

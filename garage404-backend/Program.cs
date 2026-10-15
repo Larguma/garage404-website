@@ -31,11 +31,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSection("BackendDatabase"));
+builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
 
 builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
 builder.Services.AddSingleton<UsersService>();
 builder.Services.AddSingleton<ServiceTypesService>();
 builder.Services.AddSingleton<ReservationsService>();
+builder.Services.AddSingleton<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddSingleton(FirebaseApp.Create(
     new AppOptions() { Credential = CredentialFactory.FromFile(@"garage404-68a8f.json", JsonCredentialParameters.ServiceAccountCredentialType) }));
 
