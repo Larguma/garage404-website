@@ -28,11 +28,18 @@ var projectId = "garage404-68a8f";
 
 var builder = WebApplication.CreateBuilder(args);
 
+var webRootPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
+Directory.CreateDirectory(webRootPath);
+Directory.CreateDirectory(Path.Combine(webRootPath, "images"));
+builder.WebHost.UseWebRoot(webRootPath);
+
 builder.Services.AddControllers();
 
 builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSection("BackendDatabase"));
 builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
 
+builder.Services.AddSingleton<BikesService>();
+builder.Services.AddSingleton<BikeImageStorageService>();
 builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
 builder.Services.AddSingleton<UsersService>();
 builder.Services.AddSingleton<ServiceTypesService>();
@@ -142,6 +149,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

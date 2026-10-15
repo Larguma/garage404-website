@@ -1,6 +1,0 @@
-@garage404_backend_HostAddress = http://localhost:5083
-
-GET {{garage404_backend_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

@@ -58,3 +58,6 @@ TestResult.xml
 nunit-*.xml
 
 db/
+
+garage404-backend/wwwroot/images/*
+!garage404-backend/wwwroot/images/.gitkeep
