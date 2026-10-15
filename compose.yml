@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  backend:
+    image: larguma/garage404-backend:latest
+    container_name: garage404-backend
+    restart: always
+    volumes:
+      - /home/larguma/docker_data/garage404-backend/appsettings.json:/app/appsettings.json
+    depends_on:
+      - db
+
+  db:
+    image: mongo
+    container_name: garage404-backend-db
+    restart: always
+    volumes:
+      - db-data:/var/lib/mongodb
+
+volumes:
+  db-data:
