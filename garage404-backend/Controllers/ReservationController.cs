@@ -91,7 +91,7 @@ namespace garage404_backend.Controllers
           Description =
             $"A new reservation has been created by {reservation.Name} ({reservation.Email}).\n\n"
             + $"**Phone:** {reservation.Phone}\n"
-            + $"**Preferred Date:** {reservation.PrefferedDate:yyyy-MM-dd HH:mm}\n"
+            + $"**Preferred Date:** {reservation.PreferredDate:yyyy-MM-dd HH:mm}\n"
             + $"**Vehicle:** {reservation.Vehicle}\n"
             + $"**Details:** {reservation.Details ?? "N/A"}",
           Color = 0x00FF00,

@@ -57,7 +57,8 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 
-db/
+megalinter-reports/
 
 garage404-backend/wwwroot/images/*
 !garage404-backend/wwwroot/images/.gitkeep
+*.megalinter-setup.bak
