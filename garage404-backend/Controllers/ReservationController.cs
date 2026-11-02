@@ -1,5 +1,6 @@
 using garage404_backend.Models;
 using garage404_backend.Models.Utils;
+using garage404_backend.Interfaces;
 using garage404_backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +16,8 @@ namespace garage404_backend.Controllers
     UsersService usersService,
     ILogger<ReservationController> logger,
     IDiscordWebhookService discordWebhookService,
-    IGoogleCalendarService googleCalendarService) : ControllerBase
+    IGoogleCalendarService googleCalendarService,
+    IEmailService emailService) : ControllerBase
   {
     private readonly ReservationsService _reservationsService = reservationsService;
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
@@ -23,6 +25,7 @@ namespace garage404_backend.Controllers
     private readonly ILogger<ReservationController> _logger = logger;
     private readonly IDiscordWebhookService _discord = discordWebhookService;
     private readonly IGoogleCalendarService _googleCalendar = googleCalendarService;
+    private readonly IEmailService _email = emailService;
 
     [Authorize]
     [HttpGet]
@@ -151,6 +154,7 @@ namespace garage404_backend.Controllers
 
         reservation.ActualDate = _googleCalendar.ConvertZurichTimeToUtc(actualDate.DateTime);
         reservation.CalEventId = await _googleCalendar.UpsertReservationEventAsync(reservation, cancellationToken);
+        await _email.SendReservationAcceptedAsync(reservation, cancellationToken);
         await _reservationsService.UpdateAsync(reservationId, reservation);
         return Ok();
       }

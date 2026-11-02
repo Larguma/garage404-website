@@ -36,12 +36,12 @@ public sealed class BikeImageStorageService(IWebHostEnvironment environment)
     try
     {
       await using var destination = new FileStream(
-          filePath,
-          FileMode.CreateNew,
-          FileAccess.Write,
-          FileShare.None,
-          bufferSize: 81920,
-          useAsync: true);
+        filePath,
+        FileMode.CreateNew,
+        FileAccess.Write,
+        FileShare.None,
+        bufferSize: 81920,
+        useAsync: true);
       fileCreated = true;
       await file.CopyToAsync(destination, cancellationToken);
     }
