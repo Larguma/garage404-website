@@ -6,11 +6,11 @@
 # Change major if breaking changes
 # Change minor if new features
 # Change patch if bug fixes/minor changes
-appversion="0.1.0"
+appVersion="0.1.0"
 publish=false
 
 echo "Checking branches..."
-if git rev-parse --abbrev-ref HEAD | grep -iq "main" ;then
+if git rev-parse --abbrev-ref HEAD | grep -iq "main"; then
   echo "Current branch is main, continuing..."
   publish=true
 else
@@ -20,12 +20,12 @@ fi
 echo -n "Commit all your changes before continuing... "
 read
 
-echo "Release version $appversion"
+echo "Release version $appVersion"
 
 echo -n "Is this the correct version? (y/n) "
 read answer
 
-if echo "$answer" | grep -iq "^n" ;then
+if echo "$answer" | grep -iq "^n"; then
   echo "Aborting"
   exit 1
 fi
@@ -34,19 +34,19 @@ echo "Building and pushing the docker images"
 
 # Build and push the docker image for the garage404 : latest
 docker build -t larguma/garage404-backend:latest garage404-backend/
-if $publish
+if $publish; then
   docker push larguma/garage404-backend:latest
 fi
 
 # Build and push the docker image for the garage404 : version x.x.x
-docker build -t larguma/garage404-backend:$appversion garage404-backend/
-if $publish
-  docker push larguma/garage404-backend:$appversion
+docker build -t larguma/garage404-backend:$appVersion garage404-backend/
+if $publish; then
+  docker push larguma/garage404-backend:$appVersion
 fi
 
 echo "Done"
 
-if !$publish
+if !$publish; then
   echo "Only tags on main"
   exit 1
 fi
@@ -54,17 +54,17 @@ fi
 echo "Tagging the release in git"
 
 # Tag the release in git
-git tag -a v$appversion -m "Release version $appversion"
+git tag -a v$appVersion -m "Release version $appVersion"
 
 echo -n "Would you like to push now? (y/n) "
 read answer
 
-if echo "$answer" | grep -iq "^n" ;then
+if echo "$answer" | grep -iq "^n"; then
   echo "Aborting"
   exit 1
 else
   echo "Pushing"
-  git push origin v$appversion
+  git push origin v$appVersion
   echo "Done"
   exit 1
 fi
