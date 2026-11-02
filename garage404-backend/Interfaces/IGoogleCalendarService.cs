@@ -1,6 +1,6 @@
 using garage404_backend.Models;
 
-namespace garage404_backend.Services;
+namespace garage404_backend.Interfaces;
 
 public interface IGoogleCalendarService
 {

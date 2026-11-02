@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace garage404_backend.Models;
+namespace garage404_backend.Models.Authentication;
 
 public class User
 {

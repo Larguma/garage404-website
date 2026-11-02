@@ -1,5 +1,3 @@
-using System;
-
 namespace garage404_backend.Models.Authentication;
 
 public class LoginInfo

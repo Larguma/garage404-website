@@ -1,10 +1,11 @@
 using System.Security.Claims;
+using System.Text;
+using garage404_backend.Interfaces;
 using garage404_backend.Models.Authentication;
-using garage404_backend.Models.Utils;
+using garage404_backend.Services;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using garage404_backend.Services;
-using System.Text;
 
 namespace garage404_backend.Controllers
 {
@@ -28,7 +29,7 @@ namespace garage404_backend.Controllers
         FirebaseId = firebaseId,
         Email = email,
         MongoId = (await _usersService.GetByEmailAsync(email))?.Id.ToString() ?? string.Empty,
-        RespondedAt = DateTime.Now
+        RespondedAt = DateTime.Now,
       };
     }
 
@@ -52,12 +53,13 @@ namespace garage404_backend.Controllers
       await _usersService.UpdateAsync(user);
       StringBuilder sb = new();
       sb.AppendLine("```ansi");
-      sb.AppendLine($"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (MongoId: {User.FindFirstValue(ClaimTypes.NameIdentifier)})");
+      sb.AppendLine(
+        $"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (MongoId: {User.FindFirstValue(ClaimTypes.NameIdentifier)})"
+      );
       sb.AppendLine("```");
 
       await _discord.SendMessageWithRetryAsync(sb.ToString());
       return Ok();
-
     }
   }
 }

@@ -1,7 +1,8 @@
+using garage404_backend.Interfaces;
 using garage404_backend.Models;
 using garage404_backend.Models.Utils;
-using garage404_backend.Interfaces;
 using garage404_backend.Services;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
@@ -17,7 +18,8 @@ namespace garage404_backend.Controllers
     ILogger<ReservationController> logger,
     IDiscordWebhookService discordWebhookService,
     IGoogleCalendarService googleCalendarService,
-    IEmailService emailService) : ControllerBase
+    IEmailService emailService
+  ) : ControllerBase
   {
     private readonly ReservationsService _reservationsService = reservationsService;
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
@@ -86,13 +88,14 @@ namespace garage404_backend.Controllers
         var embed = new DiscordEmbed
         {
           Title = serviceTypeName + " Reservation Created",
-          Description = $"A new reservation has been created by {reservation.Name} ({reservation.Email}).\n\n" +
-                        $"**Phone:** {reservation.Phone}\n" +
-                        $"**Preferred Date:** {reservation.PrefferedDate:yyyy-MM-dd HH:mm}\n" +
-                        $"**Vehicle:** {reservation.Vehicle}\n" +
-                        $"**Details:** {reservation.Details ?? "N/A"}",
+          Description =
+            $"A new reservation has been created by {reservation.Name} ({reservation.Email}).\n\n"
+            + $"**Phone:** {reservation.Phone}\n"
+            + $"**Preferred Date:** {reservation.PrefferedDate:yyyy-MM-dd HH:mm}\n"
+            + $"**Vehicle:** {reservation.Vehicle}\n"
+            + $"**Details:** {reservation.Details ?? "N/A"}",
           Color = 0x00FF00,
-          Timestamp = DateTime.UtcNow.ToString("o")
+          Timestamp = DateTime.UtcNow.ToString("o"),
         };
 
         await _discord.SendEmbedAsync(null, embed);
@@ -136,7 +139,8 @@ namespace garage404_backend.Controllers
     public async Task<IActionResult> AcceptReservation(
       string id,
       [FromBody] DateTimeOffset actualDate,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken
+    )
     {
       if (!await Authentication.IsAdminAsync(User, _usersService))
       {

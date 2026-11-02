@@ -1,7 +1,4 @@
-using System;
-
 namespace garage404_backend.Models.Utils;
-
 
 public class DiscordEmbed
 {

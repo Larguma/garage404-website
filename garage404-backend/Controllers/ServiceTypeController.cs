@@ -1,6 +1,6 @@
 using garage404_backend.Models;
-using garage404_backend.Models.Utils;
 using garage404_backend.Services;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +9,11 @@ namespace garage404_backend.Controllers
   [Route("v1/[controller]")]
   [ApiController]
   [Authorize]
-  public class ServiceTypeController(ServiceTypesService serviceTypesService, UsersService usersService, ILogger<ServiceTypeController> logger) : ControllerBase
+  public class ServiceTypeController(
+    ServiceTypesService serviceTypesService,
+    UsersService usersService,
+    ILogger<ServiceTypeController> logger
+  ) : ControllerBase
   {
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
     private readonly UsersService _usersService = usersService;

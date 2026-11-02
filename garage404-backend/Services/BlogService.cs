@@ -7,12 +7,15 @@ namespace garage404_backend.Services;
 
 public class BlogService(IOptions<BackendDatabaseSettings> backendDatabaseSettings)
 {
-  private readonly IMongoCollection<Blog> _blogCollection = new MongoClient(backendDatabaseSettings.Value.ConnectionString)
+  private readonly IMongoCollection<Blog> _blogCollection = new MongoClient(
+    backendDatabaseSettings.Value.ConnectionString
+  )
     .GetDatabase(backendDatabaseSettings.Value.DatabaseName)
     .GetCollection<Blog>(backendDatabaseSettings.Value.BlogCollectionName);
 
   public async Task<List<Blog>> GetAsync(CancellationToken cancellationToken = default) =>
-    await _blogCollection.Find(_ => true)
+    await _blogCollection
+      .Find(_ => true)
       .SortByDescending(article => article.PublishedAt)
       .ToListAsync(cancellationToken);
 
@@ -29,7 +32,8 @@ public class BlogService(IOptions<BackendDatabaseSettings> backendDatabaseSettin
     var result = await _blogCollection.ReplaceOneAsync(
       existingArticle => existingArticle.Id == id,
       article,
-      cancellationToken: cancellationToken);
+      cancellationToken: cancellationToken
+    );
 
     return result.MatchedCount > 0;
   }
@@ -38,7 +42,8 @@ public class BlogService(IOptions<BackendDatabaseSettings> backendDatabaseSettin
   {
     var result = await _blogCollection.DeleteOneAsync(
       article => article.Id == id,
-      cancellationToken: cancellationToken);
+      cancellationToken: cancellationToken
+    );
 
     return result.DeletedCount > 0;
   }

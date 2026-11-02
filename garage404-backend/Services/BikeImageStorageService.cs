@@ -7,22 +7,21 @@ public sealed class BikeImageStorageService(IWebHostEnvironment environment)
     "image/jpeg",
     "image/png",
     "image/gif",
-    "image/webp"
+    "image/webp",
   ];
 
-  private readonly string _imageDirectory =
-      Path.Combine(environment.WebRootPath, "images");
+  private readonly string _imageDirectory = Path.Combine(environment.WebRootPath, "images");
 
   public bool IsSupportedImage(IFormFile file) =>
-      SupportedContentTypes.Contains(file.ContentType) &&
-      Path.GetExtension(file.FileName).ToLowerInvariant() switch
-      {
-        ".jpg" or ".jpeg" => file.ContentType == "image/jpeg",
-        ".png" => file.ContentType == "image/png",
-        ".gif" => file.ContentType == "image/gif",
-        ".webp" => file.ContentType == "image/webp",
-        _ => false
-      };
+    SupportedContentTypes.Contains(file.ContentType)
+    && Path.GetExtension(file.FileName).ToLowerInvariant() switch
+    {
+      ".jpg" or ".jpeg" => file.ContentType == "image/jpeg",
+      ".png" => file.ContentType == "image/png",
+      ".gif" => file.ContentType == "image/gif",
+      ".webp" => file.ContentType == "image/webp",
+      _ => false,
+    };
 
   public async Task<string> SaveAsync(IFormFile file, CancellationToken cancellationToken)
   {
@@ -41,7 +40,8 @@ public sealed class BikeImageStorageService(IWebHostEnvironment environment)
         FileAccess.Write,
         FileShare.None,
         bufferSize: 81920,
-        useAsync: true);
+        useAsync: true
+      );
       fileCreated = true;
       await file.CopyToAsync(destination, cancellationToken);
     }

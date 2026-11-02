@@ -1,6 +1,6 @@
 using garage404_backend.Models;
-using garage404_backend.Models.Utils;
 using garage404_backend.Services;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
@@ -45,7 +45,11 @@ public class BlogController(BlogService blogService, UsersService usersService) 
 
   [Authorize]
   [HttpPut("{id}")]
-  public async Task<IActionResult> UpdateArticle(string id, [FromBody] Blog article, CancellationToken cancellationToken)
+  public async Task<IActionResult> UpdateArticle(
+    string id,
+    [FromBody] Blog article,
+    CancellationToken cancellationToken
+  )
   {
     if (!await Authentication.IsAdminAsync(User, usersService))
     {

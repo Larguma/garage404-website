@@ -7,12 +7,13 @@ namespace garage404_backend.Services;
 
 public class ServiceTypesService(IOptions<BackendDatabaseSettings> backendDatabaseSettings)
 {
-  private readonly IMongoCollection<ServiceType> _serviceTypesCollection = new MongoClient(backendDatabaseSettings.Value.ConnectionString)
+  private readonly IMongoCollection<ServiceType> _serviceTypesCollection = new MongoClient(
+    backendDatabaseSettings.Value.ConnectionString
+  )
     .GetDatabase(backendDatabaseSettings.Value.DatabaseName)
     .GetCollection<ServiceType>(backendDatabaseSettings.Value.ServiceTypesCollectionName);
 
-  public async Task<List<ServiceType>> GetAsync() =>
-    await _serviceTypesCollection.Find(_ => true).ToListAsync();
+  public async Task<List<ServiceType>> GetAsync() => await _serviceTypesCollection.Find(_ => true).ToListAsync();
 
   public async Task<ServiceType?> GetAsync(ObjectId id) =>
     await _serviceTypesCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
@@ -32,9 +33,7 @@ public class ServiceTypesService(IOptions<BackendDatabaseSettings> backendDataba
     await _serviceTypesCollection.ReplaceOneAsync(x => x.Id == id, updatedServiceType);
   }
 
-  public async Task DeleteAsync(ObjectId id) =>
-    await _serviceTypesCollection.DeleteOneAsync(x => x.Id == id);
+  public async Task DeleteAsync(ObjectId id) => await _serviceTypesCollection.DeleteOneAsync(x => x.Id == id);
 
-  public async Task DeleteAsync(int type) =>
-    await _serviceTypesCollection.DeleteManyAsync(x => x.Type == type);
+  public async Task DeleteAsync(int type) => await _serviceTypesCollection.DeleteManyAsync(x => x.Type == type);
 }

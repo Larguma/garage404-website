@@ -1,6 +1,6 @@
 using garage404_backend.Models;
-using garage404_backend.Models.Utils;
 using garage404_backend.Services;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
@@ -10,10 +10,11 @@ namespace garage404_backend.Controllers
   [Route("v1/[controller]")]
   [ApiController]
   public class BikeController(
-      BikesService bikesService,
-      BikeImageStorageService imageStorageService,
-      UsersService usersService,
-      ILogger<BikeController> logger) : ControllerBase
+    BikesService bikesService,
+    BikeImageStorageService imageStorageService,
+    UsersService usersService,
+    ILogger<BikeController> logger
+  ) : ControllerBase
   {
     private const long MaxImageSizeBytes = 10 * 1024 * 1024;
     private const long MaxRequestSizeBytes = 50 * 1024 * 1024;
@@ -57,9 +58,10 @@ namespace garage404_backend.Controllers
     [RequestSizeLimit(MaxRequestSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxRequestSizeBytes)]
     public async Task<IActionResult> UploadImages(
-        string id,
-        IFormFileCollection images,
-        CancellationToken cancellationToken)
+      string id,
+      IFormFileCollection images,
+      CancellationToken cancellationToken
+    )
     {
       if (!await Authentication.IsAdminAsync(User, usersService))
       {
@@ -71,11 +73,13 @@ namespace garage404_backend.Controllers
         return BadRequest("Bike id is invalid.");
       }
 
-      if (images is null ||
-          images.Count is 0 or > MaxImageCount ||
-          images.Any(image => image.Length is 0 or > MaxImageSizeBytes) ||
-          images.Sum(image => image.Length) > MaxRequestSizeBytes ||
-          images.Any(image => !imageStorageService.IsSupportedImage(image)))
+      if (
+        images is null
+        || images.Count is 0 or > MaxImageCount
+        || images.Any(image => image.Length is 0 or > MaxImageSizeBytes)
+        || images.Sum(image => image.Length) > MaxRequestSizeBytes
+        || images.Any(image => !imageStorageService.IsSupportedImage(image))
+      )
       {
         return BadRequest("Provide up to 10 JPEG, PNG, GIF, or WebP images, each no larger than 10 MB.");
       }

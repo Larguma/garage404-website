@@ -1,18 +1,24 @@
 using System.Text;
 using System.Text.Json;
+using garage404_backend.Interfaces;
 using garage404_backend.Models.Utils;
 
 namespace garage404_backend.Services.Utils;
 
-public class DiscordWebhookService(HttpClient httpClient, IConfiguration configuration, ILogger<DiscordWebhookService> logger) : IDiscordWebhookService
+public class DiscordWebhookService(
+  HttpClient httpClient,
+  IConfiguration configuration,
+  ILogger<DiscordWebhookService> logger
+) : IDiscordWebhookService
 {
   private readonly HttpClient _httpClient = httpClient;
-  private readonly string _webhookUrl = configuration["Discord:WebhookUrl"] ?? throw new ArgumentNullException("Discord webhook URL not configured");
+  private readonly string _webhookUrl =
+    configuration["Discord:WebhookUrl"] ?? throw new ArgumentNullException("Discord webhook URL not configured");
   private readonly ILogger<DiscordWebhookService> _logger = logger;
   private static readonly JsonSerializerOptions JsonOptions = new()
   {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
   };
 
   public async Task SendEmbedAsync(string? content, params DiscordEmbed[] embeds)

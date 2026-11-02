@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using garage404_backend.Services;
 
-namespace garage404_backend.Models.Utils;
+namespace garage404_backend.Utils;
 
 public static class Authentication
 {
