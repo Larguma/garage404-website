@@ -26,12 +26,15 @@ public class ServiceTypesService(IOptions<BackendDatabaseSettings> backendDataba
   public async Task CreateAsync(List<ServiceType> newServiceTypes) =>
     await _serviceTypesCollection.InsertManyAsync(newServiceTypes);
 
-  public async Task UpdateAsync(ObjectId id, ServiceType updatedServiceType) =>
+  public async Task UpdateAsync(ObjectId id, ServiceType updatedServiceType)
+  {
+    updatedServiceType.Id = id;
     await _serviceTypesCollection.ReplaceOneAsync(x => x.Id == id, updatedServiceType);
+  }
 
   public async Task DeleteAsync(ObjectId id) =>
     await _serviceTypesCollection.DeleteOneAsync(x => x.Id == id);
-  
+
   public async Task DeleteAsync(int type) =>
     await _serviceTypesCollection.DeleteManyAsync(x => x.Type == type);
 }

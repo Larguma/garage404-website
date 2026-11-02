@@ -1,6 +1,7 @@
 using FirebaseAdmin;
+using garage404_backend.Interfaces;
 using garage404_backend.Models;
-using garage404_backend.Services;
+using garage404_backend.Services.Utils;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using garage404_backend.Services;
 
 
 var client = new HttpClient();
@@ -37,6 +39,7 @@ builder.Services.AddControllers();
 
 builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSection("BackendDatabase"));
 builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
+builder.Services.AddOptions<EmailSettings>().Bind(builder.Configuration.GetSection("Email"));
 
 builder.Services.AddSingleton<BikesService>();
 builder.Services.AddSingleton<BikeImageStorageService>();
@@ -45,6 +48,7 @@ builder.Services.AddSingleton<UsersService>();
 builder.Services.AddSingleton<ServiceTypesService>();
 builder.Services.AddSingleton<ReservationsService>();
 builder.Services.AddSingleton<IGoogleCalendarService, GoogleCalendarService>();
+builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSingleton(FirebaseApp.Create(
     new AppOptions() { Credential = CredentialFactory.FromFile(@"garage404-68a8f.json", JsonCredentialParameters.ServiceAccountCredentialType) }));
 

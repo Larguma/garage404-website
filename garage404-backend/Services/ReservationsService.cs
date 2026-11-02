@@ -20,8 +20,11 @@ public class ReservationsService(IOptions<BackendDatabaseSettings> backendDataba
   public async Task CreateAsync(Reservation newReservation) =>
     await _reservationsCollection.InsertOneAsync(newReservation);
 
-  public async Task UpdateAsync(ObjectId id, Reservation updatedReservation) =>
+  public async Task UpdateAsync(ObjectId id, Reservation updatedReservation)
+  {
+    updatedReservation.Id = id;
     await _reservationsCollection.ReplaceOneAsync(x => x.Id == id, updatedReservation);
+  }
 
   public async Task DeleteAsync(ObjectId id) =>
     await _reservationsCollection.DeleteOneAsync(x => x.Id == id);

@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using garage404_backend.Models.Utils;
 
-namespace garage404_backend.Services;
+namespace garage404_backend.Services.Utils;
 
 public class DiscordWebhookService(HttpClient httpClient, IConfiguration configuration, ILogger<DiscordWebhookService> logger) : IDiscordWebhookService
 {
