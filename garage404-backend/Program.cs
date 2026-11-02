@@ -17,11 +17,11 @@ var keys = client
   .GetStringAsync("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com")
   .Result;
 var originalKeys = new JsonWebKeySet(keys).GetSigningKeys();
-var additionalkeys = client
+var additionalKeys = client
   .GetStringAsync("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
   .Result;
-var morekeys = new JsonWebKeySet(additionalkeys).GetSigningKeys();
-var totalkeys = originalKeys.Concat(morekeys);
+var moreKeys = new JsonWebKeySet(additionalKeys).GetSigningKeys();
+var totalKeys = originalKeys.Concat(moreKeys);
 
 DotNetEnv.Env.Load();
 var projectId = "garage404-68a8f";
@@ -33,7 +33,25 @@ Directory.CreateDirectory(webRootPath);
 Directory.CreateDirectory(Path.Combine(webRootPath, "images"));
 builder.WebHost.UseWebRoot(webRootPath);
 
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
+builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+  options.AddPolicy(
+    "Frontend",
+    policy =>
+    {
+      if (allowedOrigins.Length == 0)
+      {
+        return;
+      }
+
+      policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
+    }
+  );
+});
 
 builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSection("BackendDatabase"));
 builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
@@ -81,7 +99,7 @@ builder
       ValidAudience = projectId,
       ValidateLifetime = true,
       ValidateIssuerSigningKey = true,
-      IssuerSigningKeys = totalkeys,
+      IssuerSigningKeys = totalKeys,
     };
     options.Events = new JwtBearerEvents
     {
@@ -159,6 +177,9 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
   app.MapOpenApi();
@@ -172,6 +193,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

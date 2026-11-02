@@ -16,7 +16,17 @@ APPLY_FIXES: all
 
 # If you use ENABLE_LINTERS variable, all other linters will be disabled by
 # default
-# ENABLE_LINTERS:
+ENABLE_LINTERS:
+  [
+    CSHARP_CSHARPIER,
+    EDITORCONFIG_EDITORCONFIG_CHECKER,
+    JSON_JSONLINT,
+    JSON_V8R,
+    JSON_PRETTIER,
+    YAML_PRETTIER,
+    YAML_YAMLLINT,
+    YAML_V8R,
+  ]
 
 # DISABLE:
 # - COPYPASTE # Uncomment to disable checks of excessive copy-pastes
