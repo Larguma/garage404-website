@@ -1,19 +1,29 @@
-version: '3.8'
-
 services:
   backend:
     image: larguma/garage404-backend:latest
     container_name: garage404-backend
-    restart: always
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
     volumes:
-      - /home/larguma/docker_data/garage404-backend/appsettings.json:/app/appsettings.json
+      - type: bind
+        source: /home/larguma/docker_data/garage404-backend/wwwroot/images/
+        target: /app/wwwroot/images/
+      - type: bind
+        source: /home/larguma/docker_data/garage404-backend/.env
+        target: /app/.env
+        read_only: true
+      - type: bind
+        source: /home/larguma/docker_data/garage404-backend/garage404-68a8f.json
+        target: /app/garage404-68a8f.json
+        read_only: true
     depends_on:
       - db
 
   db:
     image: mongo
     container_name: garage404-backend-db
-    restart: always
+    restart: unless-stopped
     volumes:
       - db-data:/var/lib/mongodb
 
