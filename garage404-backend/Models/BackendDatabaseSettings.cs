@@ -10,4 +10,5 @@ public class BackendDatabaseSettings
   public string ServiceTypesCollectionName { get; set; } = null!;
   public string ReservationsCollectionName { get; set; } = null!;
   public string BikesCollectionName { get; set; } = null!;
+  public string BlogCollectionName { get; set; } = null!;
 }

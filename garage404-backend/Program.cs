@@ -13,15 +13,9 @@ using garage404_backend.Services;
 
 
 var client = new HttpClient();
-var keys = client
-    .GetStringAsync(
-        "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com")
-    .Result;
+var keys = client.GetStringAsync("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com").Result;
 var originalKeys = new JsonWebKeySet(keys).GetSigningKeys();
-var additionalkeys = client
-    .GetStringAsync(
-        "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
-    .Result;
+var additionalkeys = client.GetStringAsync("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com").Result;
 var morekeys = new JsonWebKeySet(additionalkeys).GetSigningKeys();
 var totalkeys = originalKeys.Concat(morekeys);
 
@@ -41,16 +35,16 @@ builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSec
 builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
 builder.Services.AddOptions<EmailSettings>().Bind(builder.Configuration.GetSection("Email"));
 
-builder.Services.AddSingleton<BikesService>();
-builder.Services.AddSingleton<BikeImageStorageService>();
 builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
-builder.Services.AddSingleton<UsersService>();
-builder.Services.AddSingleton<ServiceTypesService>();
-builder.Services.AddSingleton<ReservationsService>();
-builder.Services.AddSingleton<IGoogleCalendarService, GoogleCalendarService>();
+builder.Services.AddSingleton(FirebaseApp.Create(new AppOptions() { Credential = CredentialFactory.FromFile(@"garage404-68a8f.json", JsonCredentialParameters.ServiceAccountCredentialType) }));
+builder.Services.AddSingleton<BikeImageStorageService>();
+builder.Services.AddSingleton<BikesService>();
+builder.Services.AddSingleton<BlogService>();
 builder.Services.AddSingleton<IEmailService, EmailService>();
-builder.Services.AddSingleton(FirebaseApp.Create(
-    new AppOptions() { Credential = CredentialFactory.FromFile(@"garage404-68a8f.json", JsonCredentialParameters.ServiceAccountCredentialType) }));
+builder.Services.AddSingleton<IGoogleCalendarService, GoogleCalendarService>();
+builder.Services.AddSingleton<ReservationsService>();
+builder.Services.AddSingleton<ServiceTypesService>();
+builder.Services.AddSingleton<UsersService>();
 
 
 builder.Services.Configure<JsonOptions>(options =>
