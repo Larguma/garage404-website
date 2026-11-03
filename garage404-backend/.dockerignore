@@ -1,0 +1,19 @@
+# Build output
+bin/
+obj/
+
+# Secrets: mount them at runtime instead of baking them into the image (see compose.yml)
+.env
+*.env
+env
+garage404-68a8f.json
+
+# Uploaded images are stored in a volume
+wwwroot/images/*
+!wwwroot/images/.gitkeep
+
+# Tooling
+.claude-flow/
+.swarm/
+Dockerfile
+.dockerignore

@@ -5,8 +5,14 @@ services:
     image: larguma/garage404-backend:latest
     container_name: garage404-backend
     restart: always
+    # Secrets are mounted at runtime and are never baked into the image (see garage404-backend/.dockerignore).
+    env_file:
+      - path: /home/larguma/docker_data/garage404-backend/.env
+        required: false
     volumes:
-      - /home/larguma/docker_data/garage404-backend/appsettings.json:/app/appsettings.json
+      - /home/larguma/docker_data/garage404-backend/appsettings.json:/app/appsettings.json:ro
+      - /home/larguma/docker_data/garage404-backend/garage404-68a8f.json:/app/garage404-68a8f.json:ro
+      - bike-images:/app/wwwroot/images
     depends_on:
       - db
 
@@ -15,7 +21,9 @@ services:
     container_name: garage404-backend-db
     restart: always
     volumes:
-      - db-data:/var/lib/mongodb
+      # The official mongo image stores its data in /data/db.
+      - db-data:/data/db
 
 volumes:
   db-data:
+  bike-images:
