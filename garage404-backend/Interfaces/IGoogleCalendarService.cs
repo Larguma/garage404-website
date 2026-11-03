@@ -7,4 +7,6 @@ public interface IGoogleCalendarService
   DateTime ConvertZurichTimeToUtc(DateTime localDateTime);
 
   Task<string> UpsertReservationEventAsync(Reservation reservation, CancellationToken cancellationToken);
+
+  Task DeleteReservationEventAsync(string eventId, CancellationToken cancellationToken);
 }

@@ -1,32 +1,22 @@
-using FirebaseAdmin;
+using System.Threading.RateLimiting;
 using garage404_backend.Interfaces;
 using garage404_backend.Models;
 using garage404_backend.Models.Authentication;
 using garage404_backend.Services;
 using garage404_backend.Services.Utils;
-using Google.Apis.Auth.OAuth2;
+using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
-var client = new HttpClient();
-var keys = client
-  .GetStringAsync("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com")
-  .Result;
-var originalKeys = new JsonWebKeySet(keys).GetSigningKeys();
-var additionalKeys = client
-  .GetStringAsync("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
-  .Result;
-var moreKeys = new JsonWebKeySet(additionalKeys).GetSigningKeys();
-var totalKeys = originalKeys.Concat(moreKeys);
-
 DotNetEnv.Env.Load();
-var projectId = "garage404-68a8f";
 
 var builder = WebApplication.CreateBuilder(args);
+
+var projectId = builder.Configuration["Firebase:ProjectId"] ?? "garage404-68a8f";
 
 var webRootPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 Directory.CreateDirectory(webRootPath);
@@ -37,6 +27,7 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
+builder.Services.AddHealthChecks();
 builder.Services.AddCors(options =>
 {
   options.AddPolicy(
@@ -53,22 +44,50 @@ builder.Services.AddCors(options =>
   );
 });
 
+// The API runs behind a reverse proxy (OpenResty) and is not exposed directly (see compose.yml),
+// so the forwarded client IP and scheme can be trusted. They are needed for rate limiting and HTTPS redirection.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+  options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+  options.KnownIPNetworks.Clear();
+  options.KnownProxies.Clear();
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+  options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+  options.AddPolicy(
+    RateLimitPolicies.Auth,
+    context =>
+      RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+          PermitLimit = builder.Configuration.GetValue("RateLimiting:Auth:PermitLimit", 10),
+          Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimiting:Auth:WindowMinutes", 1)),
+        }
+      )
+  );
+  options.AddPolicy(
+    RateLimitPolicies.PublicWrite,
+    context =>
+      RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+          PermitLimit = builder.Configuration.GetValue("RateLimiting:PublicWrite:PermitLimit", 5),
+          Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimiting:PublicWrite:WindowMinutes", 10)),
+        }
+      )
+  );
+});
+
 builder.Services.Configure<BackendDatabaseSettings>(builder.Configuration.GetSection("BackendDatabase"));
 builder.Services.AddOptions<GoogleCalendarSettings>().Bind(builder.Configuration.GetSection("GoogleCalendar"));
 builder.Services.AddOptions<EmailSettings>().Bind(builder.Configuration.GetSection("Email"));
 
+builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IDiscordWebhookService, DiscordWebhookService>();
-builder.Services.AddSingleton(
-  FirebaseApp.Create(
-    new AppOptions()
-    {
-      Credential = CredentialFactory.FromFile(
-        @"garage404-68a8f.json",
-        JsonCredentialParameters.ServiceAccountCredentialType
-      ),
-    }
-  )
-);
 builder.Services.AddSingleton<BikeImageStorageService>();
 builder.Services.AddSingleton<BikesService>();
 builder.Services.AddSingleton<BlogService>();
@@ -77,11 +96,7 @@ builder.Services.AddSingleton<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddSingleton<ReservationsService>();
 builder.Services.AddSingleton<ServiceTypesService>();
 builder.Services.AddSingleton<UsersService>();
-
-builder.Services.Configure<JsonOptions>(options =>
-{
-  options.SerializerOptions.PropertyNamingPolicy = null;
-});
+builder.Services.AddSingleton<IAuthorizationHandler, AdminAuthorizationHandler>();
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -89,7 +104,9 @@ builder
   .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
   .AddJwtBearer(options =>
   {
-    options.IncludeErrorDetails = true;
+    options.IncludeErrorDetails = builder.Environment.IsDevelopment();
+    // The signing keys are discovered from the authority's OpenID configuration and refreshed automatically
+    // when Google rotates them.
     options.Authority = $"https://securetoken.google.com/{projectId}";
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -99,7 +116,6 @@ builder
       ValidAudience = projectId,
       ValidateLifetime = true,
       ValidateIssuerSigningKey = true,
-      IssuerSigningKeys = totalKeys,
     };
     options.Events = new JwtBearerEvents
     {
@@ -128,7 +144,12 @@ builder
       },
     };
   });
-builder.Services.AddAuthorization();
+builder
+  .Services.AddAuthorizationBuilder()
+  .AddPolicy(
+    AuthorizationPolicies.Admin,
+    policy => policy.RequireAuthenticatedUser().AddRequirements(new AdminRequirement())
+  );
 
 builder.Services.AddOpenApi(options =>
 {
@@ -159,7 +180,8 @@ builder.Services.AddOpenApi(options =>
   options.AddOperationTransformer(
     (operation, context, _) =>
     {
-      if (context.Description.ActionDescriptor.EndpointMetadata.OfType<IAuthorizeData>().Any())
+      var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+      if (metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any())
       {
         operation.Security ??= [];
         operation.Security.Add(
@@ -177,8 +199,20 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+app.Use(
+  async (context, next) =>
+  {
+    var headers = context.Response.Headers;
+    headers.XContentTypeOptions = "nosniff";
+    headers.XFrameOptions = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    await next();
+  }
+);
 
 if (app.Environment.IsDevelopment())
 {
@@ -194,8 +228,10 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();

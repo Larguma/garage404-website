@@ -48,10 +48,9 @@ public sealed class EmailService(
       new DateTimeOffset(DateTime.SpecifyKind(actualDate, DateTimeKind.Utc)),
       timeZone
     );
-    var serviceTypes = await _serviceTypesService.GetAsync(reservation.ServiceType);
     var serviceType =
-      serviceTypes.FirstOrDefault()?.Name
-      ?? throw new InvalidOperationException($"No service type found for {reservation.ServiceType}.");
+      await _serviceTypesService.GetNameAsync(reservation.ServiceType, cancellationToken)
+      ?? $"#{reservation.ServiceType}";
     var template = await File.ReadAllTextAsync(_templatePath, cancellationToken);
     var body = template
       .Replace("{{NAME}}", HtmlEncoder.Default.Encode(reservation.Name))

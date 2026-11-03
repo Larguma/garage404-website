@@ -12,13 +12,14 @@ namespace garage404_backend.Services;
 public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
 {
   private readonly ServiceTypesService _serviceTypesService;
-  private readonly CalendarService _calendarService;
+  private readonly Lazy<CalendarService> _calendarService;
   private readonly GoogleCalendarSettings _settings;
   private readonly TimeZoneInfo _timeZone;
 
   public GoogleCalendarService(
     ServiceTypesService serviceTypesService,
     IOptions<GoogleCalendarSettings> settings,
+    IConfiguration configuration,
     IWebHostEnvironment environment
   )
   {
@@ -26,14 +27,21 @@ public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
     _settings = settings.Value;
     _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZone);
 
-    var credentialPath = Path.Combine(environment.ContentRootPath, "garage404-68a8f.json");
-    var credential = CredentialFactory
-      .FromFile(credentialPath, JsonCredentialParameters.ServiceAccountCredentialType)
-      .CreateScoped(CalendarService.Scope.CalendarEvents);
-
-    _calendarService = new CalendarService(
-      new BaseClientService.Initializer { HttpClientInitializer = credential, ApplicationName = "Garage404" }
+    // The credentials are only loaded when the calendar is first used, so the API can start without them.
+    var credentialPath = Path.Combine(
+      environment.ContentRootPath,
+      configuration["Firebase:CredentialsPath"] ?? "garage404-68a8f.json"
     );
+    _calendarService = new Lazy<CalendarService>(() =>
+    {
+      var credential = CredentialFactory
+        .FromFile(credentialPath, JsonCredentialParameters.ServiceAccountCredentialType)
+        .CreateScoped(CalendarService.Scope.CalendarEvents);
+
+      return new CalendarService(
+        new BaseClientService.Initializer { HttpClientInitializer = credential, ApplicationName = "Garage404" }
+      );
+    });
   }
 
   public async Task<string> UpsertReservationEventAsync(Reservation reservation, CancellationToken cancellationToken)
@@ -43,10 +51,12 @@ public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
       throw new InvalidOperationException("The reservation must have an actual date before creating a calendar event.");
     }
 
+    var calendar = _calendarService.Value;
     var eventId = reservation.CalEventId ?? reservation.Id.ToString().ToLowerInvariant();
     var start = GetStartDateTime(actualDate);
-    var serviceTypes = await _serviceTypesService.GetAsync(reservation.ServiceType);
-    var serviceTypeName = serviceTypes[0].Name;
+    var serviceTypeName =
+      await _serviceTypesService.GetNameAsync(reservation.ServiceType, cancellationToken)
+      ?? $"#{reservation.ServiceType}";
     var calendarEvent = new Event
     {
       Id = eventId,
@@ -68,25 +78,34 @@ public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
 
     try
     {
-      await _calendarService
-        .Events.Update(calendarEvent, _settings.CalendarId, eventId)
-        .ExecuteAsync(cancellationToken);
+      await calendar.Events.Update(calendarEvent, _settings.CalendarId, eventId).ExecuteAsync(cancellationToken);
     }
     catch (Google.GoogleApiException exception) when (exception.HttpStatusCode == HttpStatusCode.NotFound)
     {
       try
       {
-        await _calendarService.Events.Insert(calendarEvent, _settings.CalendarId).ExecuteAsync(cancellationToken);
+        await calendar.Events.Insert(calendarEvent, _settings.CalendarId).ExecuteAsync(cancellationToken);
       }
       catch (Google.GoogleApiException insertException) when (insertException.HttpStatusCode == HttpStatusCode.Conflict)
       {
-        await _calendarService
-          .Events.Update(calendarEvent, _settings.CalendarId, eventId)
-          .ExecuteAsync(cancellationToken);
+        await calendar.Events.Update(calendarEvent, _settings.CalendarId, eventId).ExecuteAsync(cancellationToken);
       }
     }
 
     return eventId;
+  }
+
+  public async Task DeleteReservationEventAsync(string eventId, CancellationToken cancellationToken)
+  {
+    try
+    {
+      await _calendarService.Value.Events.Delete(_settings.CalendarId, eventId).ExecuteAsync(cancellationToken);
+    }
+    catch (Google.GoogleApiException exception)
+      when (exception.HttpStatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+    {
+      // Already deleted.
+    }
   }
 
   public DateTime ConvertZurichTimeToUtc(DateTime localDateTime)
@@ -108,7 +127,13 @@ public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
     return TimeZoneInfo.ConvertTimeToUtc(zurichDateTime, _timeZone);
   }
 
-  public void Dispose() => _calendarService.Dispose();
+  public void Dispose()
+  {
+    if (_calendarService.IsValueCreated)
+    {
+      _calendarService.Value.Dispose();
+    }
+  }
 
   private DateTimeOffset GetStartDateTime(DateTime dateTime)
   {
