@@ -28,10 +28,14 @@ public class Reservation
 
   public required DateTime PreferredDate { get; set; } = DateTime.MinValue;
 
-  /// <summary>Set by the backend when an admin accepts the reservation.</summary>
+  /// <summary>
+  /// Set by the backend when an admin accepts the reservation.
+  /// </summary>
   public DateTime? ActualDate { get; set; }
 
-  /// <summary>Google Calendar event id, set by the backend when the reservation is accepted.</summary>
+  /// <summary>
+  /// Google Calendar event id, set by the backend when the reservation is accepted.
+  /// </summary>
   public string? CalEventId { get; set; }
 
   public required int ServiceType { get; set; }

@@ -9,7 +9,7 @@ RUN dotnet restore
 COPY . ./
 RUN dotnet publish -c Release -o /app/out --no-restore
 
-# Build the runtime image (aspnet contains the ASP.NET Core shared framework, runtime does not)
+# Build the runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app/out .
