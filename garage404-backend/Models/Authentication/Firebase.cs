@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace garage404_backend.Models.Authentication;
 
 public class LoginInfo
@@ -8,13 +10,13 @@ public class LoginInfo
 
 public class FireBaseLoginInfo
 {
-  [System.Text.Json.Serialization.JsonPropertyName("email")]
+  [JsonPropertyName("email")]
   public string? Email { get; set; }
 
-  [System.Text.Json.Serialization.JsonPropertyName("password")]
+  [JsonPropertyName("password")]
   public string? Password { get; set; }
 
-  [System.Text.Json.Serialization.JsonPropertyName("returnSecureToken")]
+  [JsonPropertyName("returnSecureToken")]
   public bool ReturnSecureToken { get; set; } = true;
 }
 

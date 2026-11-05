@@ -50,6 +50,8 @@ public class BlogController(BlogService blogService, IAuthorizationService autho
   [ProducesResponseType(StatusCodes.Status409Conflict)]
   public async Task<IActionResult> CreateArticle([FromBody] Blog article, CancellationToken cancellationToken)
   {
+    article.Slug = article.Title?.Trim().ToLowerInvariant() + "-" + Guid.NewGuid().ToString("N")[..8];
+
     if (await blogService.SlugExistsAsync(article.Slug, cancellationToken: cancellationToken))
     {
       return SlugConflict(article.Slug);

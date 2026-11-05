@@ -27,11 +27,7 @@ public sealed class GoogleCalendarService : IGoogleCalendarService, IDisposable
     _settings = settings.Value;
     _timeZone = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZone);
 
-    // The credentials are only loaded when the calendar is first used, so the API can start without them.
-    var credentialPath = Path.Combine(
-      environment.ContentRootPath,
-      configuration["Firebase:CredentialsPath"] ?? "garage404-68a8f.json"
-    );
+    var credentialPath = Path.Combine(environment.ContentRootPath, "garage404-68a8f.json");
     _calendarService = new Lazy<CalendarService>(() =>
     {
       var credential = CredentialFactory

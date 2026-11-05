@@ -29,7 +29,6 @@ namespace garage404_backend.Controllers
     public async Task<IActionResult> GetBikes(CancellationToken cancellationToken)
     {
       var bikes = await bikesService.GetAsync(cancellationToken);
-
       return Ok(bikes);
     }
 

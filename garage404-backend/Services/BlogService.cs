@@ -13,7 +13,9 @@ public class BlogService(IOptions<BackendDatabaseSettings> backendDatabaseSettin
     .GetDatabase(backendDatabaseSettings.Value.DatabaseName)
     .GetCollection<Blog>(backendDatabaseSettings.Value.BlogCollectionName);
 
-  /// <summary>Returns the articles, newest first. Drafts and scheduled articles are only included on request.</summary>
+  /// <summary>
+  /// Returns the articles, newest first. Drafts and scheduled articles are only included on request.
+  /// </summary>
   public async Task<List<Blog>> GetAsync(bool includeUnpublished, CancellationToken cancellationToken = default)
   {
     var now = DateTimeOffset.UtcNow;

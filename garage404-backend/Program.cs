@@ -16,7 +16,7 @@ DotNetEnv.Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-var projectId = builder.Configuration["Firebase:ProjectId"] ?? "garage404-68a8f";
+var projectId = "garage404-68a8f";
 
 var webRootPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 Directory.CreateDirectory(webRootPath);

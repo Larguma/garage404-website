@@ -22,7 +22,9 @@ public class ServiceTypesService(IOptions<BackendDatabaseSettings> backendDataba
   public async Task<List<ServiceType>> GetAsync(int type, CancellationToken cancellationToken = default) =>
     await _serviceTypesCollection.Find(x => x.Type == type).ToListAsync(cancellationToken);
 
-  /// <summary>Returns the display name of a service type, or <c>null</c> if the type does not exist.</summary>
+  /// <summary>
+  /// Returns the display name of a service type, or <c>null</c> if the type does not exist.
+  /// </summary>
   public async Task<string?> GetNameAsync(int type, CancellationToken cancellationToken = default) =>
     (await _serviceTypesCollection.Find(x => x.Type == type).FirstOrDefaultAsync(cancellationToken))?.Name;
 
