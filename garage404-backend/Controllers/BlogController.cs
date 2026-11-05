@@ -11,16 +11,19 @@ namespace garage404_backend.Controllers;
 [ApiController]
 public class BlogController(BlogService blogService, IAuthorizationService authorizationService) : ControllerBase
 {
-  /// <summary>
-  /// Lists the published articles. Admins also get drafts (no <c>PublishedAt</c>) and scheduled articles.
-  /// </summary>
   [HttpGet]
+  [EndpointDescription("Lists the published articles. Admins also get drafts (no PublishedAt) and scheduled articles.")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
   public async Task<IActionResult> GetArticles(CancellationToken cancellationToken)
   {
     return Ok(await blogService.GetAsync(await IsAdminAsync(), cancellationToken));
   }
 
   [HttpGet("{id}")]
+  [EndpointDescription("Gets an article by its ID")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
   public async Task<IActionResult> GetArticle(string id, CancellationToken cancellationToken)
   {
     if (!ObjectId.TryParse(id, out var articleId))
@@ -32,6 +35,9 @@ public class BlogController(BlogService blogService, IAuthorizationService autho
   }
 
   [HttpGet("slug/{slug}")]
+  [EndpointDescription("Gets an article by its slug.")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
   public async Task<IActionResult> GetArticleBySlug(string slug, CancellationToken cancellationToken)
   {
     return await VisibleOrNotFound(await blogService.GetBySlugAsync(slug, cancellationToken));
@@ -39,6 +45,9 @@ public class BlogController(BlogService blogService, IAuthorizationService autho
 
   [Authorize(Policy = AuthorizationPolicies.Admin)]
   [HttpPost]
+  [EndpointDescription("Creates a new article.")]
+  [ProducesResponseType(StatusCodes.Status201Created)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
   public async Task<IActionResult> CreateArticle([FromBody] Blog article, CancellationToken cancellationToken)
   {
     if (await blogService.SlugExistsAsync(article.Slug, cancellationToken: cancellationToken))
@@ -53,6 +62,11 @@ public class BlogController(BlogService blogService, IAuthorizationService autho
 
   [Authorize(Policy = AuthorizationPolicies.Admin)]
   [HttpPut("{id}")]
+  [EndpointDescription("Updates an existing article.")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
   public async Task<IActionResult> UpdateArticle(
     string id,
     [FromBody] Blog article,
@@ -79,6 +93,10 @@ public class BlogController(BlogService blogService, IAuthorizationService autho
 
   [Authorize(Policy = AuthorizationPolicies.Admin)]
   [HttpDelete("{id}")]
+  [EndpointDescription("Deletes an article by its ID.")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
   public async Task<IActionResult> DeleteArticle(string id, CancellationToken cancellationToken)
   {
     if (!ObjectId.TryParse(id, out var articleId))

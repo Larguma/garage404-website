@@ -18,8 +18,9 @@ namespace garage404_backend.Controllers
     private readonly UsersService _usersService = usersService;
     private readonly IDiscordWebhookService _discord = discord;
 
-    /// <summary>Returns the profile of the authenticated user.</summary>
     [HttpGet]
+    [EndpointDescription("Returns the profile of the authenticated user.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<LoginDetail> GetAuthenticatedUserDetail()
     {
       var firebaseId = User.FindFirstValue("user_id");
@@ -35,9 +36,10 @@ namespace garage404_backend.Controllers
       };
     }
 
-    /// <summary>Lists all users, so that an admin can find the id to pass to set-admin.</summary>
     [HttpGet("all")]
     [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [EndpointDescription("Lists all users, so that an admin can find the id to pass to set-admin.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IEnumerable<LoginDetail>> GetUsers()
     {
       var respondedAt = DateTime.UtcNow;
@@ -51,9 +53,12 @@ namespace garage404_backend.Controllers
       });
     }
 
-    /// <summary>Grants or revokes the admin role. <paramref name="userId"/> is the Firebase id or the Mongo id.</summary>
     [HttpPost("set-admin")]
     [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [EndpointDescription("Grants or revokes the admin role. userId is the Firebase id or the Mongo id.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetAdmin([FromQuery] bool isAdmin, [FromQuery] string userId)
     {
       var user = ObjectId.TryParse(userId, out var mongoId)
@@ -76,7 +81,8 @@ namespace garage404_backend.Controllers
       StringBuilder sb = new();
       sb.AppendLine("```ansi");
       sb.AppendLine(
-        $"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (FirebaseId: {callerFirebaseId})"
+        $"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m"
+          + $" by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (FirebaseId: {callerFirebaseId})"
       );
       sb.AppendLine("```");
 

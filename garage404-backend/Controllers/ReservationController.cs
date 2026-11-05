@@ -29,14 +29,19 @@ namespace garage404_backend.Controllers
     private readonly IGoogleCalendarService _googleCalendar = googleCalendarService;
     private readonly IEmailService _email = emailService;
 
-    /// <summary>Lists all reservations, sorted by preferred date.</summary>
     [HttpGet]
+    [EndpointDescription("Lists all reservations, sorted by preferred date.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReservations(CancellationToken cancellationToken)
     {
       return Ok(await _reservationsService.GetAsync(cancellationToken));
     }
 
     [HttpGet("{id}")]
+    [EndpointDescription("Gets a reservation by its ID.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetReservation(string id, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var reservationId))
@@ -48,8 +53,11 @@ namespace garage404_backend.Controllers
       return reservation is null ? NotFound() : Ok(reservation);
     }
 
-    /// <summary>Deletes a reservation and its calendar event, if it has one.</summary>
     [HttpDelete("{id}")]
+    [EndpointDescription("Deletes a reservation and its calendar event, if it has one.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteReservation(string id, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var reservationId))
@@ -79,10 +87,12 @@ namespace garage404_backend.Controllers
       return NoContent();
     }
 
-    /// <summary>Public endpoint used by the website to request an appointment.</summary>
     [AllowAnonymous]
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.PublicWrite)]
+    [EndpointDescription("Creates a new reservation. This endpoint is public and rate-limited.")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateReservation(
       [FromBody] Reservation reservation,
       CancellationToken cancellationToken
@@ -104,7 +114,6 @@ namespace garage404_backend.Controllers
       reservation.CalEventId = null;
       await _reservationsService.CreateAsync(reservation, cancellationToken);
 
-      // The reservation is saved at this point: a notification failure must not make the client retry.
       try
       {
         await _discord.SendEmbedAsync(null, BuildCreatedEmbed(reservation, serviceTypeName));
@@ -118,6 +127,10 @@ namespace garage404_backend.Controllers
     }
 
     [HttpPut("{id}")]
+    [EndpointDescription("Updates an existing reservation.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateReservation(
       string id,
       [FromBody] Reservation reservation,
@@ -146,11 +159,15 @@ namespace garage404_backend.Controllers
       return Ok(reservation);
     }
 
-    /// <summary>
-    /// Accepts a reservation: the body is the appointment date as Europe/Zurich wall-clock time
-    /// (for example <c>"2027-01-15T09:00:00"</c>). Creates or updates the calendar event, then emails the customer.
-    /// </summary>
     [HttpPut("{id}/accept")]
+    [EndpointDescription(
+      "Accepts a reservation: the body is the appointment date as Europe/Zurich wall-clock time "
+        + "(for example '2027-01-15T09:00:00'). "
+        + "Creates or updates the calendar event, then emails the customer."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AcceptReservation(
       string id,
       [FromBody] DateTimeOffset actualDate,

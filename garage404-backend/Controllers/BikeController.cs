@@ -20,13 +20,24 @@ namespace garage404_backend.Controllers
     private const int MaxImageCount = 10;
 
     [HttpGet]
+    [EndpointDescription(
+      "Gets all bikes."
+        + " The bikes are returned in the order they were added to the database,"
+        + " with the most recently added bike first."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetBikes(CancellationToken cancellationToken)
     {
       var bikes = await bikesService.GetAsync(cancellationToken);
+
       return Ok(bikes);
     }
 
     [HttpGet("{id}")]
+    [EndpointDescription("Gets a bike by its ID.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetBike(string id, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var bikeId))
@@ -40,6 +51,8 @@ namespace garage404_backend.Controllers
 
     [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpPost]
+    [EndpointDescription("Creates a new bike.")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateBike(Bike bike, CancellationToken cancellationToken)
     {
       // Images are added through the upload endpoint only.
@@ -50,6 +63,10 @@ namespace garage404_backend.Controllers
 
     [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpPut("{id}")]
+    [EndpointDescription("Updates an existing bike.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateBike(string id, Bike bike, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var bikeId))
@@ -71,6 +88,10 @@ namespace garage404_backend.Controllers
 
     [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpDelete("{id}")]
+    [EndpointDescription("Deletes a bike by its ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteBike(string id, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var bikeId))
@@ -93,6 +114,13 @@ namespace garage404_backend.Controllers
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxRequestSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxRequestSizeBytes)]
+    [EndpointDescription(
+      "Uploads one or more images for a bike. "
+        + "The images are stored in the backend's file system and their URLs are added to the bike's Images list."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UploadImages(
       string id,
       IFormFileCollection images,
@@ -150,9 +178,15 @@ namespace garage404_backend.Controllers
       return Ok(imageReferences);
     }
 
-    /// <summary>Removes one image from a bike. <paramref name="fileName"/> is the last segment of the image URL.</summary>
     [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpDelete("{id}/images/{fileName}")]
+    [EndpointDescription(
+      "The image is removed from the bike's Images list and deleted from the backend's file system. "
+        + "The image file name must be provided without any path components."
+    )]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteImage(string id, string fileName, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var bikeId))

@@ -44,8 +44,7 @@ builder.Services.AddCors(options =>
   );
 });
 
-// The API runs behind a reverse proxy (OpenResty) and is not exposed directly (see compose.yml),
-// so the forwarded client IP and scheme can be trusted. They are needed for rate limiting and HTTPS redirection.
+// The API runs behind a reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
   options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;

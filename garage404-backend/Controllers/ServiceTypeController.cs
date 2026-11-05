@@ -13,9 +13,12 @@ namespace garage404_backend.Controllers
   {
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
 
-    /// <summary>Adds several service types at once. Each <c>Type</c> must be unique.</summary>
     [HttpPost]
     [Consumes("application/json")]
+    [EndpointDescription("Adds several service types at once. Each Type must be unique.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AddServiceTypes(
       [FromBody] List<ServiceType> json,
       CancellationToken cancellationToken
@@ -46,15 +49,19 @@ namespace garage404_backend.Controllers
       return Ok(json);
     }
 
-    /// <summary>Public: the website needs the list to build the reservation form.</summary>
     [AllowAnonymous]
     [HttpGet]
+    [EndpointDescription("Public: the website needs the list to build the reservation form.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetServiceTypes(CancellationToken cancellationToken)
     {
       return Ok(await _serviceTypesService.GetAsync(cancellationToken));
     }
 
     [HttpDelete("{type}")]
+    [EndpointDescription("Deletes a service type by its Type.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteServiceType(int type, CancellationToken cancellationToken)
     {
       if (await _serviceTypesService.DeleteAsync(type, cancellationToken) == 0)

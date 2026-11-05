@@ -15,13 +15,18 @@ namespace garage404_backend.Controllers
   {
     private const string SignInUri = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
 
-    /// <summary>Exchanges an email and a password for a Firebase ID token (OAuth2 password flow).</summary>
     [HttpPost]
     [Consumes("application/x-www-form-urlencoded", "multipart/form-data")]
     [EnableRateLimiting(RateLimitPolicies.Auth)]
+    [EndpointDescription(
+      "Exchanges an email and a password for a Firebase ID token (OAuth2 password flow)."
+        + " The ID token can be used to authenticate requests to the backend."
+    )]
     [ProducesResponseType<Token>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<Token>> GetToken([FromForm] LoginInfo loginInfo, CancellationToken cancellationToken)
     {
       if (string.IsNullOrWhiteSpace(loginInfo.Username) || string.IsNullOrWhiteSpace(loginInfo.Password))
@@ -51,7 +56,6 @@ namespace garage404_backend.Controllers
           );
         }
 
-        // Same answer for an unknown account and a wrong password, to avoid account enumeration.
         return Problem(title: "Invalid username or password.", statusCode: StatusCodes.Status401Unauthorized);
       }
 
