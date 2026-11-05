@@ -14,6 +14,23 @@ using Microsoft.OpenApi;
 
 DotNetEnv.Env.Load();
 
+if (args.Contains("--healthcheck", StringComparer.Ordinal))
+{
+  try
+  {
+    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+    using var response = await httpClient.GetAsync("http://127.0.0.1:8080/health");
+    Environment.ExitCode = response.IsSuccessStatusCode ? 0 : 1;
+  }
+  catch (Exception exception)
+  {
+    Console.Error.WriteLine($"Healthcheck failed: {exception.Message}");
+    Environment.ExitCode = 1;
+  }
+
+  return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 var projectId = "garage404-68a8f";
