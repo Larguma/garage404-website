@@ -6,17 +6,9 @@ services:
     ports:
       - "8091:8080"
     volumes:
-      - type: bind
-        source: /home/larguma/docker_data/garage404-backend/wwwroot/images/
-        target: /app/wwwroot/images/
-      - type: bind
-        source: /home/larguma/docker_data/garage404-backend/.env
-        target: /app/.env
-        read_only: true
-      - type: bind
-        source: /home/larguma/docker_data/garage404-backend/garage404-68a8f.json
-        target: /app/garage404-68a8f.json
-        read_only: true
+      - bike-images:/app/wwwroot/images/
+      - /home/larguma/docker_data/garage404-backend/.env:/app/.env:ro
+      - /home/larguma/docker_data/garage404-backend/garage404-68a8f.json:/app/garage404-68a8f.json:ro
     depends_on:
       - db
 
@@ -25,7 +17,8 @@ services:
     container_name: garage404-backend-db
     restart: unless-stopped
     volumes:
-      - db-data:/var/lib/mongodb
+      - db-data:/data/db
 
 volumes:
   db-data:
+  bike-images:

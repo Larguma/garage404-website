@@ -1,5 +1,5 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /app
+WORKDIR /src
 
 # Copy the .csproj and restore as distinct layers
 COPY *.csproj ./
@@ -7,7 +7,7 @@ RUN dotnet restore
 
 # Copy the remaining source code and build the application
 COPY . ./
-RUN dotnet publish -c Release -o out
+RUN dotnet publish -c Release -o /app/out --no-restore
 
 # Build the runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

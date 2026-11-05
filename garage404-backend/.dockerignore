@@ -1,0 +1,11 @@
+bin/
+obj/
+
+.env
+garage404-68a8f.json
+
+wwwroot/images/*
+!wwwroot/images/.gitkeep
+
+Dockerfile
+.dockerignore
