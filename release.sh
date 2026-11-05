@@ -6,7 +6,7 @@
 # Change major if breaking changes
 # Change minor if new features
 # Change patch if bug fixes/minor changes
-appVersion="0.2.0"
+appVersion="0.2.1"
 publish=false
 
 echo "Checking branches..."
