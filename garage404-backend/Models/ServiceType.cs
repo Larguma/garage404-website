@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -13,7 +14,13 @@ public class ServiceType
 
   public required int Type { get; set; } = 0;
 
+  [Required, StringLength(100)]
   public required string Name { get; set; }
 
+  [Required, StringLength(100)]
+  [RegularExpression(
+    "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    ErrorMessage = "The slug must be lowercase words separated by dashes."
+  )]
   public required string Slug { get; set; }
 }

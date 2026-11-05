@@ -5,16 +5,17 @@ using garage404_backend.Services;
 using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MongoDB.Bson;
 
 namespace garage404_backend.Controllers
 {
   [Route("v1/[controller]")]
   [ApiController]
+  [Authorize(Policy = AuthorizationPolicies.Admin)]
   public class ReservationController(
     ReservationsService reservationsService,
     ServiceTypesService serviceTypesService,
-    UsersService usersService,
     ILogger<ReservationController> logger,
     IDiscordWebhookService discordWebhookService,
     IGoogleCalendarService googleCalendarService,
@@ -23,150 +24,208 @@ namespace garage404_backend.Controllers
   {
     private readonly ReservationsService _reservationsService = reservationsService;
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
-    private readonly UsersService _usersService = usersService;
     private readonly ILogger<ReservationController> _logger = logger;
     private readonly IDiscordWebhookService _discord = discordWebhookService;
     private readonly IGoogleCalendarService _googleCalendar = googleCalendarService;
     private readonly IEmailService _email = emailService;
 
-    [Authorize]
     [HttpGet]
-    public async Task<IActionResult> GetReservations()
+    [EndpointDescription("Lists all reservations, sorted by preferred date.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReservations(CancellationToken cancellationToken)
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
-      {
-        return Forbid();
-      }
-
-      try
-      {
-        var reservations = await _reservationsService.GetAsync();
-        return Ok(reservations);
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error fetching reservations");
-        return BadRequest();
-      }
+      return Ok(await _reservationsService.GetAsync(cancellationToken));
     }
 
-    [Authorize]
+    [HttpGet("{id}")]
+    [EndpointDescription("Gets a reservation by its ID.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReservation(string id, CancellationToken cancellationToken)
+    {
+      if (!ObjectId.TryParse(id, out var reservationId))
+      {
+        return this.InvalidId("Reservation");
+      }
+
+      var reservation = await _reservationsService.GetAsync(reservationId, cancellationToken);
+      return reservation is null ? NotFound() : Ok(reservation);
+    }
+
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteReservation(string id)
+    [EndpointDescription("Deletes a reservation and its calendar event, if it has one.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteReservation(string id, CancellationToken cancellationToken)
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      if (!ObjectId.TryParse(id, out var reservationId))
       {
-        return Forbid();
+        return this.InvalidId("Reservation");
       }
 
-      try
+      var reservation = await _reservationsService.GetAsync(reservationId, cancellationToken);
+      if (reservation is null)
       {
-        await _reservationsService.DeleteAsync(ObjectId.Parse(id));
-        return Ok();
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error deleting reservation with id {id}", id);
-        return BadRequest();
-      }
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateReservation([FromBody] Reservation reservation)
-    {
-      if (reservation == null)
-      {
-        return BadRequest("Reservation data is required.");
+        return NotFound();
       }
 
-      try
+      if (reservation.CalEventId is not null)
       {
-        var serviceTypes = await _serviceTypesService.GetAsync(reservation.ServiceType);
-        var serviceTypeName = serviceTypes[0].Name;
-        await _reservationsService.CreateAsync(reservation);
-
-        var embed = new DiscordEmbed
+        try
         {
-          Title = serviceTypeName + " Reservation Created",
-          Description =
-            $"A new reservation has been created by {reservation.Name} ({reservation.Email}).\n\n"
-            + $"**Phone:** {reservation.Phone}\n"
-            + $"**Preferred Date:** {reservation.PreferredDate:yyyy-MM-dd HH:mm}\n"
-            + $"**Vehicle:** {reservation.Vehicle}\n"
-            + $"**Details:** {reservation.Details ?? "N/A"}",
-          Color = 0x00FF00,
-          Timestamp = DateTime.UtcNow.ToString("o"),
-        };
+          await _googleCalendar.DeleteReservationEventAsync(reservation.CalEventId, cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+          _logger.LogWarning(e, "Could not delete the calendar event of reservation {Id}", id);
+        }
+      }
 
-        await _discord.SendEmbedAsync(null, embed);
-        return Ok();
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error creating reservation");
-        return BadRequest();
-      }
+      await _reservationsService.DeleteAsync(reservationId, cancellationToken);
+      return NoContent();
     }
 
-    [Authorize]
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateReservation(string id, [FromBody] Reservation reservation)
+    [AllowAnonymous]
+    [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.PublicWrite)]
+    [EndpointDescription("Creates a new reservation. This endpoint is public and rate-limited.")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateReservation(
+      [FromBody] Reservation reservation,
+      CancellationToken cancellationToken
+    )
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      var serviceTypeName = await _serviceTypesService.GetNameAsync(reservation.ServiceType, cancellationToken);
+      if (serviceTypeName is null)
       {
-        return Forbid();
+        return this.FieldError(nameof(Reservation.ServiceType), $"Unknown service type {reservation.ServiceType}.");
       }
 
-      if (reservation == null)
+      if (reservation.PreferredDate < DateTime.UtcNow.Date)
       {
-        return BadRequest("Reservation data is required.");
+        return this.FieldError(nameof(Reservation.PreferredDate), "The preferred date must not be in the past.");
       }
+
+      // These fields are managed by the backend.
+      reservation.ActualDate = null;
+      reservation.CalEventId = null;
+      await _reservationsService.CreateAsync(reservation, cancellationToken);
 
       try
       {
-        await _reservationsService.UpdateAsync(ObjectId.Parse(id), reservation);
-        return Ok();
+        await _discord.SendEmbedAsync(null, BuildCreatedEmbed(reservation, serviceTypeName));
       }
       catch (Exception e)
       {
-        _logger.LogError(e, "Error updating reservation with id {id}", id);
-        return BadRequest();
+        _logger.LogWarning(e, "Reservation {Id} was saved but the Discord notification failed", reservation.Id);
       }
+
+      return CreatedAtAction(nameof(GetReservation), new { id = reservation.IdAsString }, reservation);
     }
 
-    [Authorize]
+    [HttpPut("{id}")]
+    [EndpointDescription("Updates an existing reservation.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateReservation(
+      string id,
+      [FromBody] Reservation reservation,
+      CancellationToken cancellationToken
+    )
+    {
+      if (!ObjectId.TryParse(id, out var reservationId))
+      {
+        return this.InvalidId("Reservation");
+      }
+
+      if (!await _serviceTypesService.ExistsAsync(reservation.ServiceType, cancellationToken))
+      {
+        return this.FieldError(nameof(Reservation.ServiceType), $"Unknown service type {reservation.ServiceType}.");
+      }
+
+      var existing = await _reservationsService.GetAsync(reservationId, cancellationToken);
+      if (existing is null)
+      {
+        return NotFound();
+      }
+
+      // Keep the link to the calendar event, so that accepting again updates it instead of creating a new one.
+      reservation.CalEventId ??= existing.CalEventId;
+      await _reservationsService.UpdateAsync(reservationId, reservation, cancellationToken);
+      return Ok(reservation);
+    }
+
     [HttpPut("{id}/accept")]
+    [EndpointDescription(
+      "Accepts a reservation: the body is the appointment date as Europe/Zurich wall-clock time "
+        + "(for example '2027-01-15T09:00:00'). "
+        + "Creates or updates the calendar event, then emails the customer."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AcceptReservation(
       string id,
       [FromBody] DateTimeOffset actualDate,
       CancellationToken cancellationToken
     )
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      if (!ObjectId.TryParse(id, out var reservationId))
       {
-        return Forbid();
+        return this.InvalidId("Reservation");
+      }
+
+      var reservation = await _reservationsService.GetAsync(reservationId, cancellationToken);
+      if (reservation == null)
+      {
+        return NotFound();
       }
 
       try
       {
-        var reservationId = ObjectId.Parse(id);
-        var reservation = await _reservationsService.GetAsync(reservationId);
-        if (reservation == null)
-        {
-          return NotFound($"No reservation found with id {id}");
-        }
-
         reservation.ActualDate = _googleCalendar.ConvertZurichTimeToUtc(actualDate.DateTime);
-        reservation.CalEventId = await _googleCalendar.UpsertReservationEventAsync(reservation, cancellationToken);
+      }
+      catch (ArgumentException e)
+      {
+        return this.FieldError("actualDate", e.Message);
+      }
+
+      reservation.CalEventId = await _googleCalendar.UpsertReservationEventAsync(reservation, cancellationToken);
+      await _reservationsService.UpdateAsync(reservationId, reservation, cancellationToken);
+
+      // The reservation is accepted at this point: report a failed email instead of failing the whole request.
+      var emailSent = true;
+      try
+      {
         await _email.SendReservationAcceptedAsync(reservation, cancellationToken);
-        await _reservationsService.UpdateAsync(reservationId, reservation);
-        return Ok();
       }
       catch (Exception e)
       {
-        _logger.LogError(e, "Error accepting reservation with id {id}", id);
-        return BadRequest();
+        emailSent = false;
+        _logger.LogError(e, "Reservation {Id} was accepted but the confirmation email failed", id);
       }
+
+      return Ok(new AcceptReservationResult(reservation, emailSent));
     }
+
+    private static DiscordEmbed BuildCreatedEmbed(Reservation reservation, string serviceTypeName) =>
+      new()
+      {
+        Title = serviceTypeName + " Reservation Created",
+        Description =
+          $"A new reservation has been created by {reservation.Name} ({reservation.Email}).\n\n"
+          + $"**Phone:** {reservation.Phone}\n"
+          + $"**Preferred Date:** {reservation.PreferredDate:yyyy-MM-dd HH:mm}\n"
+          + $"**Vehicle:** {reservation.Vehicle}\n"
+          + $"**Details:** {reservation.Details ?? "N/A"}",
+        Color = 0x00FF00,
+        Timestamp = DateTime.UtcNow.ToString("o"),
+      };
   }
+
+  public sealed record AcceptReservationResult(Reservation Reservation, bool EmailSent);
 }

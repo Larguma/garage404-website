@@ -6,6 +6,7 @@ using garage404_backend.Services;
 using garage404_backend.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 
 namespace garage404_backend.Controllers
 {
@@ -18,35 +19,61 @@ namespace garage404_backend.Controllers
     private readonly IDiscordWebhookService _discord = discord;
 
     [HttpGet]
+    [EndpointDescription("Returns the profile of the authenticated user.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<LoginDetail> GetAuthenticatedUserDetail()
     {
-      var claimsPrincipal = User;
-      var firebaseId = claimsPrincipal.Claims.First(x => x.Type == "user_id").Value;
-      var email = claimsPrincipal.Claims.First(x => x.Type == ClaimTypes.Email).Value;
+      var firebaseId = User.FindFirstValue("user_id");
+      var user = string.IsNullOrEmpty(firebaseId) ? null : await _usersService.GetAsync(firebaseId);
 
       return new()
       {
         FirebaseId = firebaseId,
-        Email = email,
-        MongoId = (await _usersService.GetByEmailAsync(email))?.Id.ToString() ?? string.Empty,
-        RespondedAt = DateTime.Now,
+        Email = User.FindFirstValue(ClaimTypes.Email),
+        MongoId = user?.Id.ToString() ?? string.Empty,
+        IsAdmin = user?.IsAdmin == true,
+        RespondedAt = DateTime.UtcNow,
       };
     }
 
-    [HttpPost("set-admin")]
-    [Authorize]
-    public async Task<IActionResult> SetAdmin(bool isAdmin, string userId)
+    [HttpGet("all")]
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [EndpointDescription("Lists all users, so that an admin can find the id to pass to set-admin.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IEnumerable<LoginDetail>> GetUsers()
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      var respondedAt = DateTime.UtcNow;
+      return (await _usersService.GetAsync()).Select(user => new LoginDetail
       {
-        return Forbid();
-      }
+        FirebaseId = user.FirebaseUserId,
+        MongoId = user.Id.ToString(),
+        Email = user.Email,
+        IsAdmin = user.IsAdmin,
+        RespondedAt = respondedAt,
+      });
+    }
 
-      var user = await _usersService.GetAsync(userId);
+    [HttpPost("set-admin")]
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [EndpointDescription("Grants or revokes the admin role. userId is the Firebase id or the Mongo id.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetAdmin([FromQuery] bool isAdmin, [FromQuery] string userId)
+    {
+      var user = ObjectId.TryParse(userId, out var mongoId)
+        ? await _usersService.GetAsync(mongoId)
+        : await _usersService.GetAsync(userId);
 
       if (user == null)
       {
         return NotFound();
+      }
+
+      var callerFirebaseId = User.FindFirstValue("user_id");
+      if (!isAdmin && user.FirebaseUserId == callerFirebaseId)
+      {
+        return this.FieldError(nameof(isAdmin), "You cannot remove your own admin role.");
       }
 
       user.IsAdmin = isAdmin;
@@ -54,7 +81,8 @@ namespace garage404_backend.Controllers
       StringBuilder sb = new();
       sb.AppendLine("```ansi");
       sb.AppendLine(
-        $"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (MongoId: {User.FindFirstValue(ClaimTypes.NameIdentifier)})"
+        $"User \x1b[31m{user.Email}\x1b[0m (MongoId: {user.Id}) admin status changed to \x1b[31m{isAdmin}\x1b[0m"
+          + $" by \x1b[31m{User.FindFirstValue(ClaimTypes.Email)}\x1b[0m (FirebaseId: {callerFirebaseId})"
       );
       sb.AppendLine("```");
 

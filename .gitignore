@@ -38,6 +38,8 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+env
+*.env
 garage404-68a8f.json
 
 # Others

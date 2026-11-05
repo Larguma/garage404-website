@@ -16,15 +16,20 @@ public class Blog
   [JsonPropertyName("id")]
   public string IdAsString => Id.ToString();
 
-  [Required]
+  [Required, StringLength(200)]
   public required string Title { get; set; } = string.Empty;
 
-  [Required]
+  [Required, StringLength(200)]
+  [RegularExpression(
+    "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    ErrorMessage = "The slug must be lowercase words separated by dashes."
+  )]
   public required string Slug { get; set; } = string.Empty;
 
   [Required]
   public required string Content { get; set; } = string.Empty;
 
+  [StringLength(500)]
   public string? Excerpt { get; set; }
 
   public string? ImageUrl { get; set; }

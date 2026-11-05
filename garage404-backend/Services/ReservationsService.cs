@@ -13,19 +13,36 @@ public class ReservationsService(IOptions<BackendDatabaseSettings> backendDataba
     .GetDatabase(backendDatabaseSettings.Value.DatabaseName)
     .GetCollection<Reservation>(backendDatabaseSettings.Value.ReservationsCollectionName);
 
-  public async Task<List<Reservation>> GetAsync() => await _reservationsCollection.Find(_ => true).ToListAsync();
+  public async Task<List<Reservation>> GetAsync(CancellationToken cancellationToken = default) =>
+    await _reservationsCollection
+      .Find(_ => true)
+      .SortBy(reservation => reservation.PreferredDate)
+      .ToListAsync(cancellationToken);
 
-  public async Task<Reservation?> GetAsync(ObjectId id) =>
-    await _reservationsCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
+  public async Task<Reservation?> GetAsync(ObjectId id, CancellationToken cancellationToken = default) =>
+    await _reservationsCollection.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 
-  public async Task CreateAsync(Reservation newReservation) =>
-    await _reservationsCollection.InsertOneAsync(newReservation);
+  public async Task CreateAsync(Reservation newReservation, CancellationToken cancellationToken = default) =>
+    await _reservationsCollection.InsertOneAsync(newReservation, cancellationToken: cancellationToken);
 
-  public async Task UpdateAsync(ObjectId id, Reservation updatedReservation)
+  public async Task<bool> UpdateAsync(
+    ObjectId id,
+    Reservation updatedReservation,
+    CancellationToken cancellationToken = default
+  )
   {
     updatedReservation.Id = id;
-    await _reservationsCollection.ReplaceOneAsync(x => x.Id == id, updatedReservation);
+    var result = await _reservationsCollection.ReplaceOneAsync(
+      x => x.Id == id,
+      updatedReservation,
+      cancellationToken: cancellationToken
+    );
+    return result.MatchedCount > 0;
   }
 
-  public async Task DeleteAsync(ObjectId id) => await _reservationsCollection.DeleteOneAsync(x => x.Id == id);
+  public async Task<bool> DeleteAsync(ObjectId id, CancellationToken cancellationToken = default)
+  {
+    var result = await _reservationsCollection.DeleteOneAsync(x => x.Id == id, cancellationToken);
+    return result.DeletedCount > 0;
+  }
 }

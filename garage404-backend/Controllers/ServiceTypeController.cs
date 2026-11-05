@@ -8,87 +8,68 @@ namespace garage404_backend.Controllers
 {
   [Route("v1/[controller]")]
   [ApiController]
-  [Authorize]
-  public class ServiceTypeController(
-    ServiceTypesService serviceTypesService,
-    UsersService usersService,
-    ILogger<ServiceTypeController> logger
-  ) : ControllerBase
+  [Authorize(Policy = AuthorizationPolicies.Admin)]
+  public class ServiceTypeController(ServiceTypesService serviceTypesService) : ControllerBase
   {
     private readonly ServiceTypesService _serviceTypesService = serviceTypesService;
-    private readonly UsersService _usersService = usersService;
-    private readonly ILogger<ServiceTypeController> _logger = logger;
 
     [HttpPost]
     [Consumes("application/json")]
-    public async Task<IActionResult> AddServiceTypes([FromBody] List<ServiceType> json)
+    [EndpointDescription("Adds several service types at once. Each Type must be unique.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AddServiceTypes(
+      [FromBody] List<ServiceType> json,
+      CancellationToken cancellationToken
+    )
     {
       if (json == null || json.Count == 0)
       {
-        return BadRequest("No service types provided.");
+        return this.FieldError("json", "No service types provided.");
       }
 
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      var duplicates = json.GroupBy(x => x.Type).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+      if (duplicates.Count > 0)
       {
-        return Forbid();
+        return this.FieldError("json", $"Duplicate service types in the request: {string.Join(", ", duplicates)}.");
       }
 
-      try
+      var existingTypes = (await _serviceTypesService.GetAsync(cancellationToken)).Select(x => x.Type).ToHashSet();
+      var conflicts = json.Where(x => existingTypes.Contains(x.Type)).Select(x => x.Type).ToList();
+      if (conflicts.Count > 0)
       {
-        await _serviceTypesService.CreateAsync(json);
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error adding service types");
-        return BadRequest();
+        return Problem(
+          title: $"These service types already exist: {string.Join(", ", conflicts)}.",
+          statusCode: StatusCodes.Status409Conflict
+        );
       }
 
-      return Ok();
+      await _serviceTypesService.CreateAsync(json, cancellationToken);
+      return Ok(json);
     }
 
+    [AllowAnonymous]
     [HttpGet]
-    public async Task<IActionResult> GetServiceTypes()
+    [EndpointDescription("Public: the website needs the list to build the reservation form.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetServiceTypes(CancellationToken cancellationToken)
     {
-      try
-      {
-        var serviceTypes = await _serviceTypesService.GetAsync();
-        return Ok(serviceTypes);
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error fetching service types");
-        return BadRequest();
-      }
+      return Ok(await _serviceTypesService.GetAsync(cancellationToken));
     }
 
     [HttpDelete("{type}")]
-    public async Task<IActionResult> DeleteServiceType(int type)
+    [EndpointDescription("Deletes a service type by its Type.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteServiceType(int type, CancellationToken cancellationToken)
     {
-      if (!await Authentication.IsAdminAsync(User, _usersService))
+      if (await _serviceTypesService.DeleteAsync(type, cancellationToken) == 0)
       {
-        return Forbid();
+        return Problem(title: $"No service type found with type {type}.", statusCode: StatusCodes.Status404NotFound);
       }
 
-      try
-      {
-        var serviceTypes = await _serviceTypesService.GetAsync(type);
-        if (serviceTypes.Count == 0)
-        {
-          return NotFound($"No service types found with type {type}");
-        }
-
-        foreach (var serviceType in serviceTypes)
-        {
-          await _serviceTypesService.DeleteAsync(serviceType.Id);
-        }
-      }
-      catch (Exception e)
-      {
-        _logger.LogError(e, "Error deleting service type with type {type}", type);
-        return BadRequest();
-      }
-
-      return Ok();
+      return NoContent();
     }
   }
 }

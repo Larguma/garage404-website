@@ -12,7 +12,6 @@ namespace garage404_backend.Controllers
   public class BikeController(
     BikesService bikesService,
     BikeImageStorageService imageStorageService,
-    UsersService usersService,
     ILogger<BikeController> logger
   ) : ControllerBase
   {
@@ -21,6 +20,12 @@ namespace garage404_backend.Controllers
     private const int MaxImageCount = 10;
 
     [HttpGet]
+    [EndpointDescription(
+      "Gets all bikes."
+        + " The bikes are returned in the order they were added to the database,"
+        + " with the most recently added bike first."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetBikes(CancellationToken cancellationToken)
     {
       var bikes = await bikesService.GetAsync(cancellationToken);
@@ -28,49 +33,102 @@ namespace garage404_backend.Controllers
     }
 
     [HttpGet("{id}")]
+    [EndpointDescription("Gets a bike by its ID.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetBike(string id, CancellationToken cancellationToken)
     {
       if (!ObjectId.TryParse(id, out var bikeId))
       {
-        return BadRequest("Bike id is invalid.");
+        return this.InvalidId("Bike");
       }
 
       var bike = await bikesService.GetAsync(bikeId, cancellationToken);
       return bike is null ? NotFound() : Ok(bike);
     }
 
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpPost]
-    public async Task<IActionResult> CreateBike(Bike bike)
+    [EndpointDescription("Creates a new bike.")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateBike(Bike bike, CancellationToken cancellationToken)
     {
-      if (!await Authentication.IsAdminAsync(User, usersService))
-      {
-        return Forbid();
-      }
-
-      await bikesService.CreateAsync(bike);
-      return CreatedAtAction(nameof(GetBike), new { id = bike.Id.ToString() }, bike);
+      // Images are added through the upload endpoint only.
+      bike.Images = [];
+      await bikesService.CreateAsync(bike, cancellationToken);
+      return CreatedAtAction(nameof(GetBike), new { id = bike.IdAsString }, bike);
     }
 
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [HttpPut("{id}")]
+    [EndpointDescription("Updates an existing bike.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateBike(string id, Bike bike, CancellationToken cancellationToken)
+    {
+      if (!ObjectId.TryParse(id, out var bikeId))
+      {
+        return this.InvalidId("Bike");
+      }
+
+      var existingBike = await bikesService.GetAsync(bikeId, cancellationToken);
+      if (existingBike is null)
+      {
+        return NotFound();
+      }
+
+      // Images are managed through the dedicated endpoints and are kept as they are.
+      bike.Id = bikeId;
+      bike.Images = existingBike.Images;
+      return await bikesService.UpdateAsync(bike, cancellationToken) ? Ok(bike) : NotFound();
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [HttpDelete("{id}")]
+    [EndpointDescription("Deletes a bike by its ID.")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteBike(string id, CancellationToken cancellationToken)
+    {
+      if (!ObjectId.TryParse(id, out var bikeId))
+      {
+        return this.InvalidId("Bike");
+      }
+
+      var bike = await bikesService.GetAsync(bikeId, cancellationToken);
+      if (bike is null || !await bikesService.DeleteAsync(bikeId, cancellationToken))
+      {
+        return NotFound();
+      }
+
+      DeleteUploadedImages(bike.Images);
+      return NoContent();
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
     [HttpPost("{id}/images")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxRequestSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxRequestSizeBytes)]
+    [EndpointDescription(
+      "Uploads one or more images for a bike. "
+        + "The images are stored in the backend's file system and their URLs are added to the bike's Images list."
+    )]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UploadImages(
       string id,
       IFormFileCollection images,
       CancellationToken cancellationToken
     )
     {
-      if (!await Authentication.IsAdminAsync(User, usersService))
-      {
-        return Forbid();
-      }
-
       if (!ObjectId.TryParse(id, out var bikeId))
       {
-        return BadRequest("Bike id is invalid.");
+        return this.InvalidId("Bike");
       }
 
       if (
@@ -81,7 +139,7 @@ namespace garage404_backend.Controllers
         || images.Any(image => !imageStorageService.IsSupportedImage(image))
       )
       {
-        return BadRequest("Provide up to 10 JPEG, PNG, GIF, or WebP images, each no larger than 10 MB.");
+        return this.FieldError("images", "Provide up to 10 JPEG, PNG, GIF, or WebP images, each no larger than 10 MB.");
       }
 
       var bike = await bikesService.GetAsync(bikeId, cancellationToken);
@@ -117,6 +175,32 @@ namespace garage404_backend.Controllers
       }
 
       return Ok(imageReferences);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.Admin)]
+    [HttpDelete("{id}/images/{fileName}")]
+    [EndpointDescription(
+      "The image is removed from the bike's Images list and deleted from the backend's file system. "
+        + "The image file name must be provided without any path components."
+    )]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteImage(string id, string fileName, CancellationToken cancellationToken)
+    {
+      if (!ObjectId.TryParse(id, out var bikeId))
+      {
+        return this.InvalidId("Bike");
+      }
+
+      var imageReference = $"/images/{fileName}";
+      if (!await bikesService.RemoveImageAsync(bikeId, imageReference, cancellationToken))
+      {
+        return NotFound();
+      }
+
+      DeleteUploadedImages([imageReference]);
+      return NoContent();
     }
 
     private void DeleteUploadedImages(IEnumerable<string> imageReferences)
